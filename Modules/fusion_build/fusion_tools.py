@@ -115,7 +115,8 @@ def _build_script(
     debug: bool,
     metadata: Mapping[str, Any]
 ) -> None:
-    template = Path(__file__).parent.resolve() / 'fusion-template.py'
+    template = Path(__file__).parent / '_fusion_template.py'
+    template = template.resolve()
     script = build_dir / name / f'{name}.py'
     content = template.read_text()
     content = content.replace('my_module', metadata['module'])

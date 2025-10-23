@@ -1,0 +1,65 @@
+{%- import "apt.Dockerfile.j2" as apt -%}
+{%- import "user.Dockerfile.j2" as user -%}
+
+{%- macro build(container_name, debian_version, python_version) -%}
+# Build Python from source
+FROM debian:{{ debian_version }}-slim AS {{ container_name }}
+USER root
+{{ apt.init() }}
+{{ apt.install([
+    "build-essential", "checkinstall", "curl",
+    "libsqlite3-dev", "libreadline-dev", "zlib1g-dev",
+    "libncurses5-dev", "libssl-dev", "libgdbm-dev",
+    "libffi-dev"
+]) }} 
+WORKDIR /tmp/python-source/Python-{{ python_version }}
+RUN curl -sSLf https://www.python.org/ftp/python/{{ python_version }}/Python-{{ python_version }}.tar.xz \
+        | tar -xJ -C /tmp/python-source \
+    && ./configure --enable-optimizations
+RUN make -j"$(nproc)"
+RUN checkinstall -Dy --pakdir=/opt --fstrans=no \
+    && mv /opt/*.deb /opt/python.deb
+{%- endmacro -%}
+
+{%- macro install(container_name, python_version) -%}
+# Install Python from the built package
+{{ apt.install([ "ca-certificates", "sqlite3" ]) }}
+USER root
+COPY --from={{ container_name }} /opt/python.deb /tmp/python.deb
+RUN dpkg -i /tmp/python.deb \
+    && rm -f /tmp/python.deb \
+    && ln -sf /usr/local/bin/pip3 /usr/local/bin/pip \
+    && ln -sf /usr/local/bin/python{{ python_version.split(".")[0] }} /usr/local/bin/python
+ENV PYTHONPATH=""
+USER user
+RUN python --version
+RUN pip --version
+{{ pip_install([ "pip", "wheel", "setuptools" ]) }}
+{%- endmacro -%}
+
+{%- macro pip_install(packages) -%}
+# Install packages using pip
+USER root
+ARG CACHE_BUST=false
+RUN --mount=type=cache,target=/root/.cache/pip \
+    ( [ "$CACHE_BUST" = "true" ] && pip cache purge || true ) \
+    && pip install -U {{ packages | join(" ") }}
+{%- endmacro -%}
+
+{%- macro add_path(path) -%}
+# Add a path to the Python path
+ENV PYTHONPATH="{{ path }}:${PYTHONPATH:-}"
+{%- endmacro -%}
+
+{%- macro add_project_path(path) -%}
+ARG PROJECT_ROOT
+{{ add_path("${PROJECT_ROOT}/" + path) }}
+{%- endmacro -%}
+
+{%- macro add_project(pyproject_path) -%}
+# Add a Python project and its development dependencies
+USER user
+{{ user.copy(pyproject_path, "/tmp/pyproject/" + pyproject_path) }}
+{{ pip_install([ "-e '/tmp/pyproject/" + pyproject_path + "[dev]'" ]) }}
+{{ add_project_path(pyproject_path.rsplit('/', 1)[0]) }}
+{%- endmacro -%}

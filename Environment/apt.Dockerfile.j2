@@ -1,0 +1,22 @@
+{%- macro mount_cache() -%}
+--mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+--mount=type=cache,target=/var/cache/apt,sharing=locked
+{%- endmacro -%}
+
+{%- macro init() -%}
+# Initialize APT cache and update packages
+USER root
+ARG CACHE_BUST=false
+RUN {{ mount_cache() }} \
+    ( [ "$CACHE_BUST" = "true" ] && apt-get clean || true ) \
+    && apt-get update \
+    && apt-get upgrade -y \
+    && apt-get autoremove -y
+{%- endmacro -%}
+
+{%- macro install(packages) -%}
+# Install packages using APT
+USER root
+RUN {{ mount_cache() }} apt-get install -y {{ packages | join(" ") }}
+{%- endmacro -%}
+

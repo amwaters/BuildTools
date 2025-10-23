@@ -1,0 +1,4 @@
+{%- macro project_root(dir_name) -%}
+# Add the project root to the build arguments
+ARG PROJECT_ROOT=/workspaces/{{ dir_name }}
+{%- endmacro -%}

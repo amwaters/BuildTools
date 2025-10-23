@@ -1,0 +1,20 @@
+{%- macro create_user() -%}
+# Create a new user with the given UID
+ARG UID=1000
+USER root
+RUN groupadd --gid "$UID" user \
+    && useradd \
+    --system \
+    --create-home \
+    --uid "$UID" \
+    --gid "$UID" \
+    --shell /bin/bash \
+    user
+SHELL [ "/bin/bash", "-c" ]
+{%- endmacro -%}
+
+{%- macro copy(source, target) -%}
+# COPY a file and make 'user' the owner
+ARG UID=1000
+COPY --chown=${UID}:${UID} {{ source }} {{ target }}
+{%- endmacro -%}

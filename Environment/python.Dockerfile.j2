@@ -39,9 +39,10 @@ RUN pip --version
 
 {%- macro pip_install(packages) -%}
 # Install packages using pip
-USER root
+USER user
+ARG UID=1000
 ARG CACHE_BUST=false
-RUN --mount=type=cache,target=/root/.cache/pip \
+RUN --mount=type=cache,target=/home/user/.cache/pip,uid=${UID},gid=${UID},sharing=locked \
     ( [ "$CACHE_BUST" = "true" ] && pip cache purge || true ) \
     && pip install -U {{ packages | join(" ") }}
 {%- endmacro -%}
@@ -56,10 +57,14 @@ ARG PROJECT_ROOT
 {{ add_path("${PROJECT_ROOT}/" + path) }}
 {%- endmacro -%}
 
-{%- macro add_project(pyproject_path) -%}
+{%- macro add_project(pyproject_path, source_path="") -%}
 # Add a Python project and its development dependencies
 USER user
 {{ user.copy(pyproject_path, "/tmp/pyproject/" + pyproject_path) }}
 {{ pip_install([ "-e '/tmp/pyproject/" + pyproject_path + "[dev]'" ]) }}
-{{ add_project_path(pyproject_path.rsplit('/', 1)[0]) }}
+{% if source_path -%}
+    {{ add_project_path(pyproject_path + '/' + source_path) }}
+{% else -%}
+    {{ add_project_path(pyproject_path.rsplit('/', 1)[0]) }}
+{%- endif -%}
 {%- endmacro -%}
